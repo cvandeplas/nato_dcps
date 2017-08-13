@@ -3,22 +3,6 @@
 NATO DCPS monitoring tool - Defined Contribution Pension Scheme
 @author: Christophe Vandeplas <christophe@vandeplas.com>
 @copyright: AGPLv3
-
-INSTRUCTIONS
-1. create a file called 'keys.py' containing
-        dcps_url = "https://the_url_of_the_dcps_website/login.jsp"
-        dcps_id = your_user_id
-        dcps_pwd = "your_password"
-
-2. create a scheduled/cron job to execute this script every month
-
-3. use the data as you wish
-
-TODO
-- output the results in CSV files (filename = date stamp)
-- output the results in a Google Drive Spreadsheet
-- convert this into an API that can be used within other scripts
-
 '''
 
 import requests
@@ -78,6 +62,7 @@ balance_year_table = tmp_balance_at_tds[0].parent.parent
 results = table_to_dict_array(balance_year_table)
 
 print()
+print("BALANCE PREVIOUS YEAR")
 print(tabulate(results, headers='keys'))
 
 
@@ -87,6 +72,7 @@ year_details_table = tmp_year_details_td.parent.parent
 results = table_to_dict_array(year_details_table)
 
 print()
+print("CURRENT YEAR CONTRIBUTIONS")
 print(tabulate(results, headers='keys'))
 
 
@@ -95,4 +81,5 @@ balance_now_table = tmp_balance_at_tds[1].parent.parent
 results = table_to_dict_array(balance_now_table)
 
 print()
+print("CURRENT BALANCE")
 print(tabulate(results, headers='keys'))
