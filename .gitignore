@@ -102,3 +102,4 @@ ENV/
 
 # DCPS specific
 /keys.py
+*.db
