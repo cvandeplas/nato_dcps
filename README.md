@@ -7,9 +7,9 @@ License: AGPLv3
 The DCPS website currently does keep track of the value of your holdings over time.
 This script or library will scrape the website and transform the information in a usable format.
 You can then decide what to do with the data:
-- Store locally in a SQLite database (TODO)
+- Store locally in a SQLite database
 - Store in an Google Spreadsheet (TODO)
-- Transform the 3 arrays into something you like.
+- Transform the digitalised data (arrays) into something you like.
 
 ## Usage
 First create a `keys.py` file:
