@@ -54,6 +54,8 @@ r = s.post(dcps_url, data=payload)
 # find the details of the form submit to login on the sub-site
 soup = BeautifulSoup(r.text, 'lxml')
 i = soup.find('input', attrs={"name": "token-authentication"})
+if not i:
+    exit("ERROR: Authentication error, cannot login.")
 payload = {'token-authentication': i.get('value'), 'ecol': 'Go To My Dcps'}
 url = i.parent.get('action')  # load the URL from the form, this way we don't expose it here
 r = s.post(url, data=payload)
@@ -62,6 +64,8 @@ r = s.post(url, data=payload)
 #
 # load the MY CONTRIBUTION BALANCE page containing all the juicy details
 #
+if "Your TEMPORARY first-access password" in r.text:
+    exit("ERROR: Change of password requested. Please login manually and change your password.")
 soup = BeautifulSoup(r.text, 'lxml')
 tmp_input = soup.find('input', value="MAIN-APP-I-I-IOM")
 url = '/'.join(r.url.split('/')[:3]) + tmp_input.parent.get('action')  # load the URL from within the page, this way we don't expose it here
