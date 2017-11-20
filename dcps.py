@@ -8,6 +8,8 @@ NATO DCPS monitoring tool - Defined Contribution Pension Scheme
 import requests
 from bs4 import BeautifulSoup
 import re
+import time
+from datetime import datetime
 from tabulate import tabulate
 from keys import dcps_url, dcps_id, dcps_pwd
 
@@ -31,10 +33,10 @@ def sqlite3_createdb():
     import sqlite3
     conn = sqlite3.connect('dcps.sqlite3.db')
     c = conn.cursor()
-    queries = ['CREATE TABLE contributions (date text, currency text, opcode text, amount real, UNIQUE(date, currency, opcode, amount) ON CONFLICT REPLACE)',
-               'CREATE TABLE balance_now (date text, currency text, fund text, amount real, total_units real, price_per_unit real, UNIQUE(date, currency, fund, amount) ON CONFLICT REPLACE)',
-               'CREATE TABLE balance_year (date text, currency text, fund text, amount real, total_units real, price_per_unit real, UNIQUE(date, currency, fund, amount) ON CONFLICT REPLACE)',
-               'CREATE TABLE contributions_detail(date_operation text, date_nav text, fund text, exchange_rate real, amount_gross real, fees real, amount_net real, units real, price_per_unit real, UNIQUE(date_operation, date_nav, fund, units) ON CONFLICT REPLACE)']
+    queries = ['CREATE TABLE contributions (date text, date_unix integer, currency text, opcode text, amount real, UNIQUE(date, currency, opcode, amount) ON CONFLICT REPLACE)',
+               'CREATE TABLE balance_now (date text, date_unix integer, currency text, fund text, amount real, total_units real, price_per_unit real, UNIQUE(date, currency, fund, amount) ON CONFLICT REPLACE)',
+               'CREATE TABLE balance_year (date text, date_unix integer, currency text, fund text, amount real, total_units real, price_per_unit real, UNIQUE(date, currency, fund, amount) ON CONFLICT REPLACE)',
+               'CREATE TABLE contributions_detail(date_operation text, date_operation_unix integer, date_nav text, date_nav_unix integer, fund text, exchange_rate real, amount_gross real, fees real, amount_net real, units real, price_per_unit real, UNIQUE(date_operation, date_nav, fund, units) ON CONFLICT REPLACE)']
     for query in queries:
         try:
             c.execute(query)
@@ -42,6 +44,10 @@ def sqlite3_createdb():
             pass
     conn.commit()
     return conn
+
+
+def date_to_unix(s):
+    return time.mktime(datetime.strptime(s, "%d/%m/%Y").timetuple())
 
 
 # build a permanent session object, this way we keep all cookies and such
@@ -92,7 +98,8 @@ print("BALANCE PREVIOUS YEAR")
 print(tabulate(results, headers='keys'))
 c = sql_conn.cursor()
 for i in results:
-    c.execute("INSERT INTO balance_year VALUES(?,?,?,?,?,?)", [i['NAV date'], i['Currency'], i['Fund'], i['Amount'], i['Total Units'], i['Price per UNIT']])
+    date_unix = date_to_unix(i['NAV date'])
+    c.execute("INSERT INTO balance_year VALUES(?,?,?,?,?,?,?)", [i['NAV date'], date_unix, i['Currency'], i['Fund'], i['Amount'], i['Total Units'], i['Price per UNIT']])
 sql_conn.commit()
 
 
@@ -105,7 +112,8 @@ print("CURRENT YEAR CONTRIBUTIONS - SUMMARY")
 print(tabulate(results, headers='keys'))
 c = sql_conn.cursor()
 for i in results:
-    c.execute("INSERT INTO contributions VALUES(?,?,?,?)", [i['Reference Date'], i['Currency'], i['Operation Code'], i['Total Amount']])
+    date_unix = date_to_unix(i['Reference Date'])
+    c.execute("INSERT INTO contributions VALUES(?,?,?,?,?)", [i['Reference Date'], date_unix, i['Currency'], i['Operation Code'], i['Total Amount']])
 sql_conn.commit()
 
 # Current Year contributions - Detail
@@ -134,7 +142,9 @@ for url in urls:
     for i in url_results:
         if len(i) == 0:
             continue
-        c.execute("INSERT INTO contributions_detail VALUES(?,?,?,?,?,?,?,?,?)", [i['Operation Date'], i['Nav Date'], i['Fund'], i['Exchange Rate'], i['Gross Amount Inv/Dis'], i['Fees (*)'], i['Net Amount Inv/Dis'], i['No. of Units'], i['Price per Unit']])
+        date_operation_unix = date_to_unix(i['Operation Date'])
+        date_nav_unix = date_to_unix(i['Nav Date'])
+        c.execute("INSERT INTO contributions_detail VALUES(?,?,?,?,?,?,?,?,?,?,?)", [i['Operation Date'], date_operation_unix, i['Nav Date'], date_nav_unix, i['Fund'], i['Exchange Rate'], i['Gross Amount Inv/Dis'], i['Fees (*)'], i['Net Amount Inv/Dis'], i['No. of Units'], i['Price per Unit']])
     sql_conn.commit()
 
 
@@ -146,5 +156,6 @@ print("CURRENT BALANCE")
 print(tabulate(results, headers='keys'))
 c = sql_conn.cursor()
 for i in results:
-    c.execute("INSERT INTO balance_now VALUES(?,?,?,?,?,?)", [i['NAV date'], i['Currency'], i['Fund'], i['Amount'], i['Total Units'], i['Price per UNIT']])
+    date_unix = date_to_unix(i['NAV date'])
+    c.execute("INSERT INTO balance_now VALUES(?,?,?,?,?,?,?)", [i['NAV date'], date_unix, i['Currency'], i['Fund'], i['Amount'], i['Total Units'], i['Price per UNIT']])
 sql_conn.commit()
