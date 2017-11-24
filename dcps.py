@@ -46,6 +46,16 @@ def sqlite3_createdb():
     return conn
 
 
+def normalise_data(data):
+    for row in data:
+        # transform the string numbers into float numbers
+        for col in ['Amount', 'Exchange Rate', 'Fees (*)', 'Gross Amount Inv/Dis', 'Net Amount Inv/Dis',
+                    'No. of Units', 'Price per Unit', 'Price per UNIT', 'Total Amount', 'Total Units']:
+            if col in row:
+                row[col] = float(row[col].replace(',', ''))
+    return data
+
+
 def date_to_unix(s):
     return time.mktime(datetime.strptime(s, "%d/%m/%Y").timetuple())
 
@@ -87,28 +97,38 @@ sql_conn = sqlite3_createdb()
 # Balance Previous year
 tmp_balance_at_tds = soup.find_all('td', limit=2, string=re.compile("Balance at"))
 balance_year_table = tmp_balance_at_tds[0].parent.parent
-results = table_to_dict_array(balance_year_table)
+results = normalise_data(table_to_dict_array(balance_year_table))
 print()
 print("BALANCE PREVIOUS YEAR")
 print(tabulate(results, headers='keys'))
 c = sql_conn.cursor()
 for i in results:
-    date_unix = date_to_unix(i['NAV date'])
-    c.execute("INSERT INTO balance_year VALUES(?,?,?,?,?,?,?)", [i['NAV date'], date_unix, i['Currency'], i['Fund'], i['Amount'], i['Total Units'], i['Price per UNIT']])
+    c.execute("INSERT INTO balance_year VALUES(?,?,?,?,?,?,?)", [
+        i['NAV date'],
+        date_to_unix(i['NAV date']),
+        i['Currency'],
+        i['Fund'],
+        i['Amount'],
+        i['Total Units'],
+        i['Price per UNIT']])
 sql_conn.commit()
 
 
 # Current Year contributions - Summary
 tmp_year_details_td = soup.find('td', string=re.compile("Current Year Details"))
 year_details_table = tmp_year_details_td.parent.parent
-results = table_to_dict_array(year_details_table)
+results = normalise_data(table_to_dict_array(year_details_table))
 print()
 print("CURRENT YEAR CONTRIBUTIONS - SUMMARY")
 print(tabulate(results, headers='keys'))
 c = sql_conn.cursor()
 for i in results:
-    date_unix = date_to_unix(i['Reference Date'])
-    c.execute("INSERT INTO contributions VALUES(?,?,?,?,?)", [i['Reference Date'], date_unix, i['Currency'], i['Operation Code'], i['Total Amount']])
+    c.execute("INSERT INTO contributions VALUES(?,?,?,?,?)", [
+        i['Reference Date'],
+        date_to_unix(i['Reference Date']),
+        i['Currency'],
+        i['Operation Code'],
+        i['Total Amount']])
 sql_conn.commit()
 
 # Current Year contributions - Detail
@@ -126,27 +146,42 @@ for url in urls:
     url_soup = BeautifulSoup(url_r.text, 'lxml')
     tmp_operation_date_td = url_soup.find('th', string=re.compile("Operation Date"))
     url_details_table = tmp_operation_date_td.find_parent('table')
-    url_results = table_to_dict_array(url_details_table)
+    url_results = normalise_data(table_to_dict_array(url_details_table))
     print()
     print(tabulate(url_results, headers='keys'))
     c = sql_conn.cursor()
     for i in url_results:
         if len(i) == 0:
             continue
-        date_operation_unix = date_to_unix(i['Operation Date'])
-        date_nav_unix = date_to_unix(i['Nav Date'])
-        c.execute("INSERT INTO contributions_detail VALUES(?,?,?,?,?,?,?,?,?,?,?)", [i['Operation Date'], date_operation_unix, i['Nav Date'], date_nav_unix, i['Fund'], i['Exchange Rate'], i['Gross Amount Inv/Dis'], i['Fees (*)'], i['Net Amount Inv/Dis'], i['No. of Units'], i['Price per Unit']])
+        c.execute("INSERT INTO contributions_detail VALUES(?,?,?,?,?,?,?,?,?,?,?)", [
+            i['Operation Date'],
+            date_to_unix(i['Operation Date']),
+            i['Nav Date'],
+            date_to_unix(i['Nav Date']),
+            i['Fund'],
+            i['Exchange Rate'],
+            i['Gross Amount Inv/Dis'],
+            i['Fees (*)'],
+            i['Net Amount Inv/Dis'],
+            i['No. of Units'],
+            i['Price per Unit']])
     sql_conn.commit()
 
 
 # Current Balance
 balance_now_table = tmp_balance_at_tds[1].parent.parent
-results = table_to_dict_array(balance_now_table)
+results = normalise_data(table_to_dict_array(balance_now_table))
 print()
 print("CURRENT BALANCE")
 print(tabulate(results, headers='keys'))
 c = sql_conn.cursor()
 for i in results:
-    date_unix = date_to_unix(i['NAV date'])
-    c.execute("INSERT INTO balance_now VALUES(?,?,?,?,?,?,?)", [i['NAV date'], date_unix, i['Currency'], i['Fund'], i['Amount'], i['Total Units'], i['Price per UNIT']])
+    c.execute("INSERT INTO balance_now VALUES(?,?,?,?,?,?,?)", [
+        i['NAV date'],
+        date_to_unix(i['NAV date']),
+        i['Currency'],
+        i['Fund'],
+        i['Amount'],
+        i['Total Units'],
+        i['Price per UNIT']])
 sql_conn.commit()
