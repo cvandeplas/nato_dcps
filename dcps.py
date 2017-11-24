@@ -79,11 +79,6 @@ payload = {'f-token': 'MAIN-APP-I-I-IOM',
            'c-token': 'MAIN-APP-I-I-IWP-WEP',
            'a-token': 'null'}
 r = s.post(url, payload)
-
-# with open('tmp.html', 'w') as f:
-#     f.write(r.text)
-# with open('tmp.html', 'r') as f:
-#     html = f.read()
 soup = BeautifulSoup(r.text, 'lxml')
 
 sql_conn = sqlite3_createdb()
@@ -127,10 +122,6 @@ j = 0
 for url in urls:
     url = '/'.join(r.url.split('/')[:3]) + url  # load the URL from within the page, this way we don't expose it here
     url_r = s.get(url)
-    # with open('tmp_{}.html'.format(j), 'w') as f:
-    #     f.write(url_r.text)
-    # with open('tmp_{}.html'.format(j), 'r') as f:
-    #     html = f.read()
     j += 1
     url_soup = BeautifulSoup(url_r.text, 'lxml')
     tmp_operation_date_td = url_soup.find('th', string=re.compile("Operation Date"))
