@@ -11,7 +11,10 @@ import re
 import time
 from datetime import datetime
 from tabulate import tabulate
-from keys import dcps_url, dcps_id, dcps_pwd
+try:
+    from keys import dcps_url, dcps_id, dcps_pwd
+except Exception:
+    exit("ERROR: keys.py file with dcps_url, dcps_id, dcps_pwd does not exist.")
 
 
 def table_to_dict_array(table):
