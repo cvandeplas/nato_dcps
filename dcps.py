@@ -63,6 +63,78 @@ def date_to_unix(s):
     return time.mktime(datetime.strptime(s, "%d/%m/%Y").timetuple())
 
 
+def db_insert_contributions(data, sql_conn=None):
+    if not sql_conn:
+        sql_conn = sqlite3_createdb()
+
+    c = sql_conn.cursor()
+    for i in data:
+        c.execute("INSERT INTO contributions VALUES(?,?,?,?,?)", [
+            i['Reference Date'],
+            date_to_unix(i['Reference Date']),
+            i['Currency'],
+            i['Operation Code'],
+            i['Total Amount']])
+    sql_conn.commit()
+
+
+def db_insert_contributions_detail(data, sql_conn=None):
+    if not sql_conn:
+        sql_conn = sqlite3_createdb()
+
+    c = sql_conn.cursor()
+    for i in data:
+        if len(i) == 0:
+            continue
+        c.execute("INSERT INTO contributions_detail VALUES(?,?,?,?,?,?,?,?,?,?,?)", [
+            i['Operation Date'],
+            date_to_unix(i['Operation Date']),
+            i['Nav Date'],
+            date_to_unix(i['Nav Date']),
+            i['Fund'],
+            i['Exchange Rate'],
+            i['Gross Amount Inv/Dis'],
+            i['Fees (*)'],
+            i['Net Amount Inv/Dis'],
+            i['No. of Units'],
+            i['Price per Unit']])
+    sql_conn.commit()
+
+
+def db_insert_balance_now(data, sql_conn=None):
+    if not sql_conn:
+        sql_conn = sqlite3_createdb()
+
+    c = sql_conn.cursor()
+    for i in data:
+        c.execute("INSERT INTO balance_now VALUES(?,?,?,?,?,?,?)", [
+            i['NAV date'],
+            date_to_unix(i['NAV date']),
+            i['Currency'],
+            i['Fund'],
+            i['Amount'],
+            i['Total Units'],
+            i['Price per UNIT']])
+    sql_conn.commit()
+
+
+def db_insert_balance_year(data, sql_conn=None):
+    if not sql_conn:
+        sql_conn = sqlite3_createdb()
+
+    c = sql_conn.cursor()
+    for i in data:
+        c.execute("INSERT INTO balance_year VALUES(?,?,?,?,?,?,?)", [
+            i['NAV date'],
+            date_to_unix(i['NAV date']),
+            i['Currency'],
+            i['Fund'],
+            i['Amount'],
+            i['Total Units'],
+            i['Price per UNIT']])
+    sql_conn.commit()
+
+
 def db_update_from_online():
     # build a permanent session object, this way we keep all cookies and such
     s = requests.Session()
@@ -104,17 +176,7 @@ def db_update_from_online():
     print()
     print("BALANCE PREVIOUS YEAR")
     print(tabulate(results, headers='keys'))
-    c = sql_conn.cursor()
-    for i in results:
-        c.execute("INSERT INTO balance_year VALUES(?,?,?,?,?,?,?)", [
-            i['NAV date'],
-            date_to_unix(i['NAV date']),
-            i['Currency'],
-            i['Fund'],
-            i['Amount'],
-            i['Total Units'],
-            i['Price per UNIT']])
-    sql_conn.commit()
+    db_insert_balance_year(results, sql_conn)
 
     # Current Year contributions - Summary
     tmp_year_details_td = soup.find('td', string=re.compile("Current Year Details"))
@@ -123,15 +185,7 @@ def db_update_from_online():
     print()
     print("CURRENT YEAR CONTRIBUTIONS - SUMMARY")
     print(tabulate(results, headers='keys'))
-    c = sql_conn.cursor()
-    for i in results:
-        c.execute("INSERT INTO contributions VALUES(?,?,?,?,?)", [
-            i['Reference Date'],
-            date_to_unix(i['Reference Date']),
-            i['Currency'],
-            i['Operation Code'],
-            i['Total Amount']])
-    sql_conn.commit()
+    db_insert_contributions(results, sql_conn)
 
     # Current Year contributions - Detail
     print()
@@ -151,23 +205,7 @@ def db_update_from_online():
         url_results = normalise_data(table_to_dict_array(url_details_table))
         print()
         print(tabulate(url_results, headers='keys'))
-        c = sql_conn.cursor()
-        for i in url_results:
-            if len(i) == 0:
-                continue
-            c.execute("INSERT INTO contributions_detail VALUES(?,?,?,?,?,?,?,?,?,?,?)", [
-                i['Operation Date'],
-                date_to_unix(i['Operation Date']),
-                i['Nav Date'],
-                date_to_unix(i['Nav Date']),
-                i['Fund'],
-                i['Exchange Rate'],
-                i['Gross Amount Inv/Dis'],
-                i['Fees (*)'],
-                i['Net Amount Inv/Dis'],
-                i['No. of Units'],
-                i['Price per Unit']])
-        sql_conn.commit()
+        db_insert_contributions_detail(url_results, sql_conn)
 
     # Current Balance
     balance_now_table = tmp_balance_at_tds[1].parent.parent
@@ -175,17 +213,7 @@ def db_update_from_online():
     print()
     print("CURRENT BALANCE")
     print(tabulate(results, headers='keys'))
-    c = sql_conn.cursor()
-    for i in results:
-        c.execute("INSERT INTO balance_now VALUES(?,?,?,?,?,?,?)", [
-            i['NAV date'],
-            date_to_unix(i['NAV date']),
-            i['Currency'],
-            i['Fund'],
-            i['Amount'],
-            i['Total Units'],
-            i['Price per UNIT']])
-    sql_conn.commit()
+    db_insert_balance_now(results, sql_conn)
 
 
 def db_get_funds():
