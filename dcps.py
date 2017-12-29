@@ -216,6 +216,67 @@ def db_update_from_online():
     db_insert_balance_now(results, sql_conn)
 
 
+def db_update_from_pdf(fname):
+    '''
+    FIXME WORK IN PROGRESS
+    FIXME WORK IN PROGRESS
+    FIXME WORK IN PROGRESS
+
+
+    This is ugly code that will break when the PDF format changes.
+    However it seems to do the trick.
+    It will extract the text from the pdf using the slate library,
+    and then transform the blob into nice tables,
+    and will finally store everything into the database
+
+    You are free to email me your PDF files if they break and I will try to fix it.
+    I will not keep any file you send me.
+    '''
+    import slate
+    # TODO verify slate version
+    print("Reading PDF file {}".format(fname))
+    with open(fname, 'rb') as f:
+        doc = slate.PDF(f)
+    contributions = []
+
+    for page in doc:
+        if 'Holdings (SUMMARY)' in page:
+            print("Holdings (SUMMARY) page")
+        elif 'Holdings (DETAIL)' in page:
+            # remove header line and other pollution
+            page = re.sub(r'^.*Holdings \(DETAIL\)', '', page)
+            page = re.sub(r'TransactionInvestment', '', page)
+            page = re.sub(r'\x0c', '', page)
+            # extract the columns with a big regex - note the last 2 columns are extracted in a different way than they are visually seen on the page.
+            #   ([a-zA-Z \(\)\*]+)                  # operation code
+            #   ([0-9]{2}/[0-9]{2}/[0-9]{4})        # date
+            #   ([A-Z]{3}[a-zA-Z ]+\([A-Z]{3}\))    # fund (CURR)
+            #   (-?[0-9.]+,[0-9]{2})                # total amount
+            #   ([A-Z]{3})                          # currency
+            #   (-?[0-9.]+,[0-9]{2})                # amount invested
+            #   (-?[0-9.]+,[0-9]{3})                # total units
+            #   ([0-9.]+,[0-9]{4})                  # price per unit
+            page = re.sub(
+                r'([a-zA-Z \(\)\*]+)([0-9]{2}/[0-9]{2}/[0-9]{4})([A-Z]{3}[a-zA-Z ]+\([A-Z]{3}\))(-?[0-9.]+,[0-9]{2})([A-Z]{3})(-?[0-9.]+,[0-9]{2})(-?[0-9.]+,[0-9]{3})([0-9.]+,[0-9]{4})',
+                r'\1\t\2\t\3\t\4\t\5\t\6\t\8\t\7\n',
+                page)
+            page = page.strip('\n')         # cleanup last newline our regex added
+            # we now have a clean table, iterate over each row in our newly made table and put everything in something usable
+            for line in page.split('\n'):
+                # remove remaining polluting lines: summary, header
+                if line.startswith('TOTAL') or line == 'Operation CodeFundInvestmentTotal AmountCurrencyTransactionAmount Invested /Disinvested / AccruedPrice per Unit(NAV)ReferenceDateTotal Units':
+                    continue
+                line = line.replace('.', '').replace(',', '.')  # fix number format to match the website's format
+                items = re.split('\t', line)
+                contributions.append(items)
+
+    contributions = normalise_data(pdf_contribution_list_to_dict_array(contributions))
+    # do something with the extracted data
+    if len(contributions):
+        print("Holdings (DETAIL) page - contributions")
+        print(tabulate(contributions, headers='keys'))
+
+
 def db_get_funds():
     '''
     returns a list of the funds
@@ -248,17 +309,41 @@ def db_get_latest_balance():
     # return round(result[0][0], 2)
 
 
-# db_update_from_online()
+def pdf_contribution_list_to_dict_array(table):
+    headers = ['Operation Code', 'Operation Date', 'Fund', 'Total Amount', 'Currency', 'Gross Amount Inv/Dis', 'Price per Unit', 'No. of Units']
+    results = []
+    for row in table:
+        results_row = {}
+        for i, col in enumerate(row):
+            results_row[headers[i]] = col
+        results.append(results_row)
+    return results
+    i['Operation Date'],
+    i['Nav Date'],
+    i['Fund'],
+    i['Exchange Rate'],
+    i['Gross Amount Inv/Dis'],
+    i['Fees (*)'],
+    i['Net Amount Inv/Dis'],
+    i['No. of Units'],
+    i['Price per Unit']
+
+
+
 
 # FIXME add command line parsing and help
 # -q -- quiet mode, output nothing except errors. great as cronjob
 # -d <> -- debug 1 to 9
 # --first-run or --magic -- first run, do magic: extract data, extract old data from Individual Statement PDFs and compute data based on historical fund value
 # -f -- path for database, (default dcps.sqlite3.db)
+# --pdf -- parses the PDF file from Individual Statements
+
+db_update_from_online()
 
 
 
-# TESTING
+# TESTING - WORK IN PROGRESS
+#
 # sql_conn = sqlite3_createdb()
 # c = sql_conn.cursor()
 
@@ -271,3 +356,6 @@ def db_get_latest_balance():
 
 # print(db_get_latest_balance())
 
+# fnames = ['docs/filename_1514390050721.pdf', 'docs/filename_1514390077314.pdf']
+# for fname in fnames:
+#     db_update_from_pdf(fname)
