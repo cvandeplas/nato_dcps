@@ -5,6 +5,7 @@ NATO DCPS monitoring tool - Defined Contribution Pension Scheme
 @copyright: AGPLv3
 '''
 
+import argparse
 import requests
 from bs4 import BeautifulSoup
 import re
@@ -378,14 +379,16 @@ def pdf_contributions_detail_dict_to_contributions_dict(table):
     return results
 
 
-# FIXME add command line parsing and help
-# -q -- quiet mode, output nothing except errors. great as cronjob
-# -d <> -- debug 1 to 9
-# --first-run or --magic -- first run, do magic: extract data, extract old data from Individual Statement PDFs and compute data based on historical fund value
-# -f -- path for database, (default dcps.sqlite3.db)
-# --pdf -- parses the PDF file from Individual Statements
+if __name__ == "__main__":
+    # parser = argparse.ArgumentParser(description='Monitor and report your NATO Defined Contribution Pension Scheme holdings.')
+    # parser.add_argument('-q', '--quiet', dest='quiet', action='store_true', help='output nothing except errors. great for cronjobs (TODO)')  # TODO implement this
+    # parser.add_argument('--pdf', dest='pdf', action='store_true', help='process historical Individual Statement PDFs')
+    # parser.add_argument('-v', '--verbose', dest='verbose', action='store_true', help='extra verbosity')
 
-db_update_from_online()
+    # --first-run or --magic -- first run, do magic: extract data, extract old data from Individual Statement PDFs and compute data based on historical fund value
+    # -f -- path for database, (default dcps.sqlite3.db)
+
+    db_update_from_online()
 
 
 # TESTING - WORK IN PROGRESS
