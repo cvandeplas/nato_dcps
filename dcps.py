@@ -17,7 +17,7 @@ except Exception:
     exit("ERROR: keys.py file with dcps_url, dcps_id, dcps_pwd does not exist.")
 
 
-def table_to_dict_array(table):
+def html_table_to_dict_array(table):
     headers = [header.get_text().strip() for header in table.find_all("th")]
     results = []
     for row in table.find_all('tr'):
@@ -28,7 +28,8 @@ def table_to_dict_array(table):
         results_row = {}
         for i, col in enumerate(row.find_all('td')):
             results_row[headers[i]] = col.get_text().strip()
-        results.append(results_row)
+        if len(results_row) > 0:
+            results.append(results_row)
     return results
 
 
@@ -172,7 +173,7 @@ def db_update_from_online():
     # Balance Previous year
     tmp_balance_at_tds = soup.find_all('td', limit=2, string=re.compile("Balance at"))
     balance_year_table = tmp_balance_at_tds[0].parent.parent
-    results = normalise_data(table_to_dict_array(balance_year_table))
+    results = normalise_data(html_table_to_dict_array(balance_year_table))
     print()
     print("BALANCE PREVIOUS YEAR")
     print(tabulate(results, headers='keys'))
@@ -181,7 +182,7 @@ def db_update_from_online():
     # Current Year contributions - Summary
     tmp_year_details_td = soup.find('td', string=re.compile("Current Year Details"))
     year_details_table = tmp_year_details_td.parent.parent
-    results = normalise_data(table_to_dict_array(year_details_table))
+    results = normalise_data(html_table_to_dict_array(year_details_table))
     print()
     print("CURRENT YEAR CONTRIBUTIONS - SUMMARY")
     print(tabulate(results, headers='keys'))
@@ -192,6 +193,7 @@ def db_update_from_online():
     print("CURRENT YEAR CONTRIBUTIONS - DETAILS")
     ahrefs = year_details_table.find_all('a')
     urls = set()
+    contributions_detail = []
     for ahref in ahrefs:
         urls.add(ahref.get('href'))
     j = 0
@@ -202,14 +204,15 @@ def db_update_from_online():
         url_soup = BeautifulSoup(url_r.text, 'lxml')
         tmp_operation_date_td = url_soup.find('th', string=re.compile("Operation Date"))
         url_details_table = tmp_operation_date_td.find_parent('table')
-        url_results = normalise_data(table_to_dict_array(url_details_table))
-        print()
-        print(tabulate(url_results, headers='keys'))
+        url_results = normalise_data(html_table_to_dict_array(url_details_table))
+        contributions_detail += url_results
         db_insert_contributions_detail(url_results, sql_conn)
+    print()
+    print(tabulate(contributions_detail, headers='keys'))
 
     # Current Balance
     balance_now_table = tmp_balance_at_tds[1].parent.parent
-    results = normalise_data(table_to_dict_array(balance_now_table))
+    results = normalise_data(html_table_to_dict_array(balance_now_table))
     print()
     print("CURRENT BALANCE")
     print(tabulate(results, headers='keys'))
@@ -339,7 +342,6 @@ def pdf_contribution_list_to_dict_array(table):
 # --pdf -- parses the PDF file from Individual Statements
 
 db_update_from_online()
-
 
 
 # TESTING - WORK IN PROGRESS
