@@ -40,7 +40,7 @@ def sqlite3_createdb():
     queries = ['CREATE TABLE contributions (date text, date_unix integer, currency text, opcode text, amount real, UNIQUE(date, currency, opcode, amount) ON CONFLICT REPLACE)',
                'CREATE TABLE balance_now (date text, date_unix integer, currency text, fund text, amount real, total_units real, price_per_unit real, UNIQUE(date, currency, fund, amount) ON CONFLICT REPLACE)',
                'CREATE TABLE balance_year (date text, date_unix integer, currency text, fund text, amount real, total_units real, price_per_unit real, UNIQUE(date, currency, fund, amount) ON CONFLICT REPLACE)',
-               'CREATE TABLE contributions_detail(date_operation text, date_operation_unix integer, date_nav text, date_nav_unix integer, fund text, exchange_rate real, amount_gross real, fees real, amount_net real, units real, price_per_unit real, UNIQUE(date_operation, date_nav, fund, units) ON CONFLICT REPLACE)']
+               'CREATE TABLE contributions_detail(date_operation text, date_operation_unix integer, date_nav text, date_nav_unix integer, fund text, exchange_rate real, amount_gross real, fees real, amount_net real, units real, price_per_unit real, UNIQUE(date_operation, fund, units) ON CONFLICT REPLACE)']
     for query in queries:
         try:
             c.execute(query)
@@ -240,7 +240,7 @@ def db_update_from_pdf(fname):
     print("Reading PDF file {}".format(fname))
     with open(fname, 'rb') as f:
         doc = slate.PDF(f)
-    contributions = []
+    contributions_detail = []
 
     for page in doc:
         if 'Holdings (SUMMARY)' in page:
@@ -272,12 +272,19 @@ def db_update_from_pdf(fname):
                     continue
                 line = line.replace('.', '').replace(',', '.')  # fix number format to match the website's format
                 items = re.split('\t', line)
-                contributions.append(items)
+                contributions_detail.append(items)
 
-    contributions = normalise_data(pdf_contribution_list_to_dict_array(contributions))
+    contributions_detail = normalise_data(pdf_contributions_detail_list_to_dict_array(contributions_detail))
+    db_insert_contributions_detail(contributions_detail)
     # do something with the extracted data
-    if len(contributions):
+    if len(contributions_detail):
         print("Holdings (DETAIL) page - contributions")
+        print(tabulate(contributions_detail, headers='keys'))
+
+        print()
+        print("Computed contributions (summary)")
+        contributions = pdf_contributions_detail_dict_to_contributions_dict(contributions_detail)
+        db_insert_contributions(contributions)
         print(tabulate(contributions, headers='keys'))
 
 
@@ -313,26 +320,62 @@ def db_get_latest_balance():
     # return round(result[0][0], 2)
 
 
-def pdf_contribution_list_to_dict_array(table):
-    headers = ['Operation Code', 'Operation Date', 'Fund', 'Total Amount', 'Currency', 'Gross Amount Inv/Dis', 'Price per Unit', 'No. of Units']
+def pdf_contributions_detail_list_to_dict_array(table):
+    '''
+    build a compatible list to insert the contributions as contributions_detail into the database
+    '''
     results = []
     for row in table:
-        results_row = {}
-        for i, col in enumerate(row):
-            results_row[headers[i]] = col
-        results.append(results_row)
+        results.append({
+            'Operation Code': row[0],
+            'Operation Date': row[1],
+            'Nav Date': row[1],        # this is not really correct, but it's the best we can do now, and it should not affect the rest as the unique constraint is not on the nav_date
+            'Fund': row[2],
+            'Total Amount': row[3],
+            'Currency': row[4],
+            'Gross Amount Inv/Dis': row[5],
+            'Net Amount Inv/Dis': row[5],
+            'Price per Unit': row[6],
+            'No. of Units': row[7],
+            'Exchange Rate': '1.0',
+            'Fees (*)': '0.0'
+        })
     return results
-    i['Operation Date'],
-    i['Nav Date'],
-    i['Fund'],
-    i['Exchange Rate'],
-    i['Gross Amount Inv/Dis'],
-    i['Fees (*)'],
-    i['Net Amount Inv/Dis'],
-    i['No. of Units'],
-    i['Price per Unit']
 
 
+def pdf_contributions_detail_dict_to_contributions_dict(table):
+    '''
+    build a summary of contributions using contribution details extracted from the PDF
+    '''
+    # LATER we could do this easily with numpy, but it's yet one more library to import, so we'll do it manually this time
+    # We need to keep
+    #   i['Reference Date'],
+    #   i['Currency'],
+    #   i['Operation Code'],
+    #   i['Total Amount']
+    # for each 'Operation Date', and 'Operation Code' group the items together by taking the sum
+    tmp_computation = {}
+    for row in table:
+        if not tmp_computation.get(row['Operation Date']):
+            tmp_computation[row['Operation Date']] = {}
+        if not tmp_computation[row['Operation Date']].get(row['Operation Code']):
+            tmp_computation[row['Operation Date']][row['Operation Code']] = {}
+        if not tmp_computation[row['Operation Date']][row['Operation Code']].get('Total Amount'):
+            tmp_computation[row['Operation Date']][row['Operation Code']]['Total Amount'] = 0
+        tmp_computation[row['Operation Date']][row['Operation Code']]['Currency'] = row['Currency']
+        tmp_computation[row['Operation Date']][row['Operation Code']]['Total Amount'] += row['Total Amount']
+    # then rebuild a proper array with dicts
+    results = []
+    for op_date, v1 in tmp_computation.items():
+        for op_code, v2 in v1.items():
+            # print("{} {:15} \t{}".format(op_date, op_code, v2))
+            results.append({
+                'Reference Date': op_date,
+                'Currency': v2['Currency'],
+                'Operation Code': op_code,
+                'Total Amount': round(v2['Total Amount'], 2)
+            })
+    return results
 
 
 # FIXME add command line parsing and help
