@@ -250,7 +250,8 @@ def db_update_from_pdf(fname):
             page = re.sub(r'^.*Holdings \(DETAIL\)', '', page)
             page = re.sub(r'TransactionInvestment', '', page)
             page = re.sub(r'\x0c', '', page)
-            # extract the columns with a big regex - note the last 2 columns are extracted in a different way than they are visually seen on the page.
+            page = re.sub(r'TOTAL([0-9]{2}/[0-9]{2}/[0-9]{4})([A-Z]{3}[a-zA-Z ]+\([A-Z]{3}\))(-?[0-9.]+,[0-9]{3})', '', page)
+            # extract the columns with a big regex - note the last 2 columns are presented in a different way than they are visually seen on the page.
             #   ([a-zA-Z \(\)\*]+)                  # operation code
             #   ([0-9]{2}/[0-9]{2}/[0-9]{4})        # date
             #   ([A-Z]{3}[a-zA-Z ]+\([A-Z]{3}\))    # fund (CURR)
