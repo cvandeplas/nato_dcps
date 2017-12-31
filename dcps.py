@@ -27,6 +27,7 @@ class DCPS:
         self.web_sess = None       # web session
         self.sql_conn = None    # SQLite connection
         self.webpage_main = None  # response of main webpage
+        self.webpage_doc = None   # response of documents webpage
 
         self.sqlite3_createdb()
 
@@ -134,8 +135,8 @@ class DCPS:
                 i['Price per UNIT']])
         self.sql_conn.commit()
 
-    def web_login(self):
-        if self.webpage_main:   # we are already authenticated, no new login needed
+    def web_login(self, force=False):
+        if self.webpage_main and not force:   # we are already authenticated, no new login needed
             return self.webpage_main
         # build a permanent session object, this way we keep all cookies and such
         self.web_sess = requests.Session()
@@ -166,7 +167,7 @@ class DCPS:
         tmp_input = soup.find('input', value="MAIN-APP-I-I-IOM")
         url = '/'.join(self.webpage_main.url.split('/')[:3]) + tmp_input.parent.get('action')  # load the URL from within the page, this way we don't expose it here
         payload = {'f-token': 'MAIN-APP-I-I-IOM',
-                   'c-token': 'MAIN-APP-I-I-IWP-WEP',
+                   'c-token': 'MAIN-APP-I-I-IOM-IOM',
                    'a-token': 'null'}
         r = self.web_sess.post(url, payload)
         soup = BeautifulSoup(r.text, 'lxml')
@@ -219,7 +220,38 @@ class DCPS:
         print(tabulate(results, headers='keys'))
         self.db_insert_balance_now(results)
 
-    def db_update_from_pdf(self, fname):
+    def web_get_documents_list(self):
+        # FIXME split this function into a generic function to get documents
+        # and another function using these results for the individual statement files merged in the db_update_from_pdf
+        self.web_login()
+
+        # load the MY CONTRIBUTION BALANCE page containing all the juicy details
+        soup = BeautifulSoup(self.webpage_main.text, 'lxml')
+        tmp_input = soup.find('input', value="MAIN-APP-I-I-IDV")
+        url = '/'.join(self.webpage_main.url.split('/')[:3]) + tmp_input.parent.get('action')  # load the URL from within the page, this way we don't expose it here
+        payload = {'f-token': 'MAIN-APP-I-I-IDV',
+                   'c-token': 'MAIN-APP-I-I-IOM-IOM',
+                   'a-token': 'null'}
+        r = self.web_sess.post(url, payload)
+        soup = BeautifulSoup(r.text, 'lxml')
+        ahrefs = soup.find_all('a', string=re.compile("Individual Statement"))
+        urls = set()
+        for ahref in ahrefs:
+            urls.add(ahref.get('href'))
+        for url in urls:
+            url = '/'.join(self.webpage_main.url.split('/')[:3]) + url  # load the URL from within the page, this way we don't expose it here
+            url_r = self.web_sess.get(url)
+            content_disposition = url_r.headers['content-disposition']
+            fname = re.findall("filename=(.+)", content_disposition)[0]
+            from io import BytesIO
+            f = BytesIO(url_r.content)
+            self.db_update_from_pdf(f)   # update the db using the in-memory pdf file
+            print()
+            print("Saving Individual Statement file {}".format(fname))   # TODO do this if the user requests to save the file locally
+            with open(fname, 'wb') as f:
+                f.write(url_r.content)
+
+    def db_update_from_pdf(self, f):
         '''
         FIXME WORK IN PROGRESS
         FIXME WORK IN PROGRESS
@@ -237,9 +269,7 @@ class DCPS:
         '''
         import slate
         # TODO verify slate version
-        print("Reading PDF file {}".format(fname))
-        with open(fname, 'rb') as f:
-            doc = slate.PDF(f)
+        doc = slate.PDF(f)
         contributions_detail = []
 
         for page in doc:
@@ -296,7 +326,6 @@ class DCPS:
         result = c.fetchall()
         return [x[0] for x in result]
 
-    # JUST PLAYING AROUND
     def db_get_contributions_sum(self):
         c = self.sql_conn.cursor()
         c.execute("SELECT SUM(amount) FROM contributions")
@@ -371,16 +400,27 @@ class DCPS:
 
 
 if __name__ == "__main__":
-    # parser = argparse.ArgumentParser(description='Monitor and report your NATO Defined Contribution Pension Scheme holdings.')
+    parser = argparse.ArgumentParser(description='Monitor and report your NATO Defined Contribution Pension Scheme holdings.')
     # parser.add_argument('-q', '--quiet', dest='quiet', action='store_true', help='output nothing except errors. great for cronjobs (TODO)')  # TODO implement this
-    # parser.add_argument('--pdf', dest='pdf', action='store_true', help='process historical Individual Statement PDFs')
+    parser.add_argument('--pdf', dest='pdf', action='store_true', help='process historical Individual Statement PDFs')
+    parser.add_argument('--update', dest='update', action='store_true', help='process normal yearly data (by default if no params are given)')
     # parser.add_argument('-v', '--verbose', dest='verbose', action='store_true', help='extra verbosity')
 
     # --first-run or --magic -- first run, do magic: extract data, extract old data from Individual Statement PDFs and compute data based on historical fund value
     # -f -- path for database, (default dcps.sqlite3.db)
 
+    args = parser.parse_args()
+
     dcps = DCPS(keys.dcps_url, keys.dcps_id, keys.dcps_pwd)
-    dcps.db_update_from_webpage()
+
+    if args.pdf:
+        dcps.web_get_documents_list()
+    else:
+        dcps.db_update_from_webpage()
+        print()
+        print("####################")
+        print("# DATABASE UPDATED #")
+        print("####################")
 
     # TESTING - WORK IN PROGRESS
     #

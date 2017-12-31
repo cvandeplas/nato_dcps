@@ -55,5 +55,17 @@ Currency    Operation Code        Total Units    #    NAV date      Price per UN
 ----------  --------------------  -------------  ---  ----------  ----------------  ---------------------------------  ---------
 EUR         Current Year Balance  10,000.000          04/08/2017             1.000  XXX Global Equity W (EUR)          10,000.00
 EUR         Current Year Balance  1,000.000           04/08/2017            10.000  YYY Global Stock Index Fund (EUR)  10,000.00
+```
 
+
+## Individual Statement YYYY magical PDF parsing
+To find old data back you can to go the DCPS page, DOCUMENTS (left menu), 'Individual Statement YYYY'. 
+You can use these ones to manually copy the data to the sqlite database and complete the graphs.
+Or use the EXPERIMENTAL magical pdf parsing capability using the slate library and some custom magic.
+
+To install slate
+```sh
+git clone https://github.com/timClicks/slate.git
+sudo -H pip3 install -I .
+sudo -H pip3 install utils
 ```
